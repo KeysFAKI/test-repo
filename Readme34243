@@ -1,1 +1,70 @@
+import RPi.GPIO as GPIO
+import time
+import matplotlib.pyplot as plt
 
+dac = [26, 19, 13, 6, 5, 11, 9, 10]
+leds = [21, 20, 16, 12, 7, 8, 25, 24]
+bits = len(dac)
+levels = 2**bits
+maxVoltage = 3.3
+comparator = 4
+troykaModule = 17
+
+def decimal2binary(decimal): 
+   return [int(bit) for bit in bin(decimal)[2:].zfill(bits)]
+
+def bin2dac(value):
+     signal = decimal2binary(value)
+     GPIO.output(dac, signal)
+     GPIO.output(leds, signal)
+     return signal
+
+def acd(i, value):
+    if i == -1:
+        return value
+    bin2dac(value + 2**i)
+    time.sleep(0.001)
+    comparatorValue = GPIO.input(comparator)
+    if comparatorValue == 0:
+        return acd(i-1, value)
+    else: 
+        return acd(i-1, value+2**i)
+    
+    
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(dac, GPIO.OUT, initial = GPIO.LOW)
+GPIO.setup(troykaModule, GPIO.OUT, initial=GPIO.HIGH)
+GPIO.setup(comparator, GPIO.IN)
+GPIO.setup(leds,GPIO.OUT)
+
+try:
+     data = []
+     GPIO.output(troykaModule, 1)
+     k = 0
+     while True:
+         GPIO.output(dac, GPIO.LOW)
+         value = acd(bits-1, 0)
+         voltage = value / levels * maxVoltage
+         data.append(value)
+         print("Цифровой сигал: {:^3}, Конденастор заряжен до: {:.2f} v".format(value, voltage))
+         time.sleep(0.01)
+         if (value >= 240):
+              GPIO.output(troykaModule, 0)
+              k = 1
+         if (value <= 15 and k == 1):
+              break
+     plt.plot(data)
+     plt.show()
+
+
+except KeyboardInterrupt:
+     print("The program was stoped by the keyboard")
+else:
+     print("No expections")
+finally:
+     GPIO.output(dac, GPIO.LOW)
+     GPIO.cleanup(dac)
+     GPIO.output(leds, GPIO.LOW)
+     GPIO.cleanup(leds)
+     print("GPIO cleanup completed")
